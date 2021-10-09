@@ -11,20 +11,25 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace PermitsScraper
+namespace PermitsScraper.Services
 {
-    public class ScrapingService
+    public class ScrapingService : IScrapingService
     {
         private readonly Regex _regex = new Regex(@"<tr[^>]*>\s*<td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td>\s*<\/tr>");
-        public void Scrape()
-        {
-            //using (ObjectContainer.BeginContext)
-            //{
-            //    var repo = ObjectContainer.GetInstance<ITestRepo>();
+        private readonly IScrapingClientService _scrapingClientService;
 
-            //    repo.TestDatabase();
-            //    repo.TestDatabase2();
-            //}
+        public ScrapingService(IScrapingClientService scrapingClientService)
+        {
+            _scrapingClientService = scrapingClientService;
+        }
+
+        public void Run()
+        {
+            _scrapingClientService.GetHtml();
+        }
+
+        public void ScrapeOld()
+        {
             ChromeOptions chromeOptions = new ChromeOptions();
             //chromeOptions.AddArgument("headless");
             using (IWebDriver driver = new ChromeDriver(chromeOptions))
@@ -178,7 +183,7 @@ namespace PermitsScraper
             var matches = _regex.Matches(html);
 
             var results = new List<Permit>();
-            foreach(Match match in matches)
+            foreach (Match match in matches)
             {
                 var values = match.Groups.Values.ToArray();
                 //match.Groups.

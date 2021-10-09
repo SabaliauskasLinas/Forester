@@ -1,5 +1,6 @@
 ﻿using Common;
 using Entities.Repository;
+using Microsoft.Extensions.Configuration;
 using Npgsql;
 using System;
 using System.Collections.Generic;
@@ -17,6 +18,13 @@ namespace Repository
         public bool HasActiveTransaction { get { return _runInTransaction; } }
         public DbConnection Connection { get { return GetConnection(); } }
         public bool _runInTransaction { get; set; }
+        private readonly string _connectionString;
+
+        public DbRepository (IConfigurationRoot config)
+        {
+            _connectionString = config.GetConnectionString("DataConnection");
+        }
+
         public DbTransaction Transaction
         {
             get
@@ -246,7 +254,7 @@ namespace Repository
             {
                 try
                 {
-                    _conn = new NpgsqlConnection("Host=localhost;Username=postgres;Password=l8k5j2123;Database=forester");
+                    _conn = new NpgsqlConnection(_connectionString);
                     _conn.Open();
                     //_log.Debug("{0} Connection OPENED", _type);
                 }

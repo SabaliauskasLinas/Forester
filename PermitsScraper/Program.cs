@@ -1,23 +1,18 @@
-﻿using HtmlAgilityPack;
-using OpenQA.Selenium;
-using OpenQA.Selenium.Chrome;
-using OpenQA.Selenium.Support.UI;
-using PermitsScraper.Entities;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Linq;
+﻿using Microsoft.Extensions.Configuration;
+using PermitsScraper.Services;
 
 namespace PermitsScraper
 {
     public class Program
     {
+        public static IConfigurationRoot configuration;
         public static void Main(string[] args)
         {
             ObjectContainer.Init();
-            var service = new ScrapingService();
-            service.Scrape();
+            using (ObjectContainer.BeginContext)
+            {
+                ObjectContainer.GetInstance<IScrapingService>().Run();
+            }
         }
     }
 }

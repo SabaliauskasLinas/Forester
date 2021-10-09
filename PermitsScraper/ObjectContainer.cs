@@ -1,6 +1,9 @@
-﻿using SimpleInjector;
+﻿using Microsoft.Extensions.Configuration;
+using PermitsScraper.Services;
+using SimpleInjector;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 
 namespace PermitsScraper
@@ -10,6 +13,16 @@ namespace PermitsScraper
         public static void Init()
         {
             var container = new Container();
+
+            var configuration = new ConfigurationBuilder()
+               .SetBasePath(Directory.GetParent(AppContext.BaseDirectory).FullName)
+               .AddJsonFile("appsettings.json", false)
+               .Build();
+
+            container.Register(() => configuration, Lifestyle.Singleton);
+
+            container.Register<IScrapingService, ScrapingService>(Lifestyle.Singleton);
+            container.Register<IScrapingClientService, ScrapingClientService>(Lifestyle.Singleton);
             Repository.ObjectContainerInitializer.Init(container);
         }
 
