@@ -1,21 +1,15 @@
-﻿using OpenQA.Selenium;
-using OpenQA.Selenium.Chrome;
-using OpenQA.Selenium.Support.UI;
+﻿using HtmlAgilityPack;
 using PermitsScraper.Entities;
-using Repository.Repositories;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
 
 namespace PermitsScraper.Services
 {
     public class ScrapingService : IScrapingService
     {
-        private readonly Regex _regex = new Regex(@"<tr[^>]*>\s*<td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td>\s*<\/tr>");
+        private readonly Regex _tableRegex = new Regex(@"<tr[^>]*>\s*<td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td>\s*<\/tr>");
         private readonly IScrapingClientService _scrapingClientService;
 
         public ScrapingService(IScrapingClientService scrapingClientService)
@@ -25,187 +19,70 @@ namespace PermitsScraper.Services
 
         public void Run()
         {
-            _scrapingClientService.GetHtml();
-        }
-
-        public void ScrapeOld()
-        {
-            ChromeOptions chromeOptions = new ChromeOptions();
-            //chromeOptions.AddArgument("headless");
-            using (IWebDriver driver = new ChromeDriver(chromeOptions))
+            var htmlDoc = new HtmlDocument();
+            var pageResponse = _scrapingClientService.GetPageResponse();
+            htmlDoc.LoadHtml(pageResponse.Content);
+            var args = new GetPageArgs
             {
-                WebDriverWait wait = new WebDriverWait(driver, TimeSpan.FromSeconds(10));
-                driver.Navigate().GoToUrl("http://www.amvmt.lt/kirtleidimai/default.aspx");
-                var enterprisesRadio = driver.FindElement(By.Id("RadioButton4"));
-                enterprisesRadio.Click();
-                var dropdown = driver.FindElement(By.Id("DropDownList3"));
-                var options = dropdown.FindElements(By.TagName("option"));
-                var optionValues = options.Select(o => o.GetAttribute("value")).ToList();
-                foreach (var optionValue in optionValues)
+                Cookie = pageResponse.Headers.ToList().Find(x => x.Name == "Set-Cookie").Value.ToString().Split(";")[0],
+                ViewState = htmlDoc.GetElementbyId("__VIEWSTATE").GetAttributeValue("value", string.Empty),
+                Year = "RadioButton1",
+                ReportType = "RadioButton5",
+                FilterType = "RadioButton4",
+                SortBy = "RB7_sort_Leid_serij_nr",
+            };
+
+            var enterprises = htmlDoc.DocumentNode.SelectNodes("//select[@id='DropDownList3']/option").Select(n => n.GetAttributeValue("value", string.Empty)).ToList();
+            foreach (var enterprise in enterprises)
+            {
+                args.EventTarget = null;
+                args.EventArgument = null;
+                args.Enterprise = enterprise;
+
+                pageResponse = _scrapingClientService.GetPageResponse(args);
+                htmlDoc.LoadHtml(pageResponse.Content);
+                args.ViewState = htmlDoc.GetElementbyId("__VIEWSTATE").GetAttributeValue("value", string.Empty);
+
+                var forestries = htmlDoc.DocumentNode.SelectNodes("//select[@id='DropDownList4']/option").Select(n => n.GetAttributeValue("value", string.Empty)).ToList();
+                foreach (var forestry in forestries)
                 {
-                    dropdown = driver.FindElement(By.Id("DropDownList3"));
-                    dropdown.Click();
-                    var option = driver.FindElement(By.XPath($"//option[@value='{optionValue}']"));
-                    option.Click();
-                    driver.FindElement(By.Id("Button1")).Click();
+                    if (forestry == "Anciškių girininkija")
+                        Console.WriteLine("A");
+                    args.ForestryFilterState = "on";
+                    args.Forestry = forestry;
+                    args.ButtonName = "Filtruoti";
+                    pageResponse = _scrapingClientService.GetPageResponse(args);
+                    htmlDoc.LoadHtml(pageResponse.Content);
+                    args.ViewState = htmlDoc.GetElementbyId("__VIEWSTATE").GetAttributeValue("value", string.Empty);
 
-                    var paginationExists = driver.FindElements(By.XPath("//table[@id='GridView2']/tbody/tr[@align='right']")).Count == 1;
-                    var permits = GetData(driver, paginationExists);
-                    if (paginationExists)
+                    var permits = new List<Permit>();
+                    permits.AddRange(GetPermits(pageResponse.Content));
+
+                    var totalPages = int.Parse(htmlDoc.GetElementbyId("Label1").GetDirectInnerText().Split("  ")[1]);
+                    if (totalPages > 1)
                     {
-                        var currentPage = 1;
-                        while (true)
+                        args.ButtonName = null;
+                        args.EventTarget = "GridView2";
+                        for (int page = 2; page <= totalPages; page++)
                         {
-                            currentPage++;
-                            var pagination = driver.FindElement(By.XPath("//table[@id='GridView2']/tbody/tr[@align='right']"));
-                            if (pagination.FindElements(By.XPath($"//a[contains(@href, \"'Page${currentPage}'\")]")).Count == 0)
-                                break;
-
-                            pagination.FindElement(By.XPath($"//a[contains(@href, \"'Page${currentPage}'\")]")).Click();
-                            permits.AddRange(GetData(driver, paginationExists));
+                            args.EventArgument = $"Page${page}";
+                            pageResponse = _scrapingClientService.GetPageResponse(args);
+                            permits.AddRange(GetPermits(pageResponse.Content));
                         }
-                        GoToFirstPage(driver);
                     }
-                    Console.WriteLine($"Enterprise: {optionValue}, Permits Count: {permits.Count}");
+                    Console.WriteLine($"{enterprise}: {forestry}, total permits - {permits.Count}");
                 }
             }
         }
 
-        private void GoToFirstPage(IWebDriver driver)
+        private List<Permit> GetPermits(string page)
         {
-            IJavaScriptExecutor js = (IJavaScriptExecutor)driver;
-            js.ExecuteScript("javascript: __doPostBack('GridView2', 'Page$1')");
-        }
-
-        private List<Permit> GetData(IWebDriver driver, bool paginationExists)
-        {
-            Stopwatch stopWatch = new Stopwatch();
-
-            //stopWatch.Start();
-            //var results = GetDataV2(driver);
-            //stopWatch.Stop();
-
-            //Console.WriteLine($"V2 Time elapsed: {stopWatch.Elapsed.TotalSeconds}");
-            //stopWatch.Reset();
-
-            //stopWatch.Start();
-            //var results = GetDataV1(driver, paginationExists);
-            //stopWatch.Stop();
-
-
-            stopWatch.Start();
-            var results = GetDataV3(driver);
-            stopWatch.Stop();
-
-            StreamWriter sw = new StreamWriter("D:\\Test.txt", true);
-            foreach (var result in results)
-                sw.WriteLine($"{result.Number}, {result.Region}, {result.District}, {result.OwnershipForm}, {result.Enterprise}, {result.Forestry}, {result.Square}, {result.Plots}, {result.Area}, {result.CadastralLocation}, {result.CadastralBlock}, {result.CadastralNumber}, {result.CuttingType}, {result.ValidFrom}, {result.ValidTo}");
-            sw.Close();
-
-            Console.WriteLine($"V3 Time elapsed: {stopWatch.Elapsed.TotalSeconds}");
-            return results;
-        }
-
-        private List<Permit> GetDataV1(IWebDriver driver, bool paginationExists)
-        {
-            var results = new List<Permit>();
-            var tableRows = driver.FindElements(By.XPath("//table[@id='GridView2']/tbody/tr")).ToList();
-            if (tableRows.Count == 0)
-                return results;
-
-            tableRows.RemoveAt(0);
-            if (paginationExists)
-                tableRows.RemoveAt(tableRows.Count - 1);
-
-            foreach (var row in tableRows)
-            {
-                Stopwatch stopWatch = new Stopwatch();
-                stopWatch.Start();
-                var dataList = row.FindElements(By.TagName("td"));
-                results.Add(new Permit
-                {
-                    Number = dataList[0].Text,
-                    Region = dataList[1].Text,
-                    District = dataList[2].Text,
-                    OwnershipForm = dataList[3].Text,
-                    Enterprise = dataList[4].Text,
-                    Forestry = dataList[5].Text,
-                    Square = dataList[6].Text,
-                    Plots = dataList[7].Text,
-                    Area = dataList[8].Text,
-                    CadastralLocation = dataList[9].Text,
-                    CadastralBlock = dataList[10].Text,
-                    CadastralNumber = dataList[11].Text,
-                    CuttingType = dataList[12].Text,
-                    ValidFrom = dataList[13].Text,
-                    ValidTo = dataList[14].Text,
-                });
-                stopWatch.Stop();
-                Console.WriteLine($"Inner elapsed time {stopWatch.Elapsed.TotalSeconds}");
-            }
-
-            return results;
-        }
-
-        private List<Permit> GetDataV2(IWebDriver driver)
-        {
-            var tableData = driver.FindElements(By.XPath("//table[@id='GridView2']/tbody/tr/td"));
-            var totalRows = tableData.Count / 15;
-            var results = new List<Permit>();
-            for (var i = 0; i < totalRows; i++)
-            {
-                var indexStart = i * 15;
-                results.Add(new Permit
-                {
-                    Number = tableData[indexStart].Text,
-                    Region = tableData[indexStart + 1].Text,
-                    District = tableData[indexStart + 2].Text,
-                    OwnershipForm = tableData[indexStart + 3].Text,
-                    Enterprise = tableData[indexStart + 4].Text,
-                    Forestry = tableData[indexStart + 5].Text,
-                    Square = tableData[indexStart + 6].Text,
-                    Plots = tableData[indexStart + 7].Text,
-                    Area = tableData[indexStart + 8].Text,
-                    CadastralLocation = tableData[indexStart + 9].Text,
-                    CadastralBlock = tableData[indexStart + 10].Text,
-                    CadastralNumber = tableData[indexStart + 11].Text,
-                    CuttingType = tableData[indexStart + 12].Text,
-                    ValidFrom = tableData[indexStart + 13].Text,
-                    ValidTo = tableData[indexStart + 14].Text,
-                });
-            }
-            return results;
-        }
-
-        private List<Permit> GetDataV3(IWebDriver driver)
-        {
-            var html = driver.PageSource;
-            var matches = _regex.Matches(html);
-
-            var results = new List<Permit>();
+            var permits = new List<Permit>();
+            var matches = _tableRegex.Matches(page);
             foreach (Match match in matches)
             {
                 var values = match.Groups.Values.ToArray();
-                //match.Groups.
-                //var permit = match.Groups.Select(v => new Permit
-                //{
-                //    Number = v,
-                //    Region = tableData[indexStart + 1].Text,
-                //    District = tableData[indexStart + 2].Text,
-                //    OwnershipForm = tableData[indexStart + 3].Text,
-                //    Enterprise = tableData[indexStart + 4].Text,
-                //    Forestry = tableData[indexStart + 5].Text,
-                //    Square = tableData[indexStart + 6].Text,
-                //    Plots = tableData[indexStart + 7].Text,
-                //    Area = tableData[indexStart + 8].Text,
-                //    CadastralLocation = tableData[indexStart + 9].Text,
-                //    CadastralBlock = tableData[indexStart + 10].Text,
-                //    CadastralNumber = tableData[indexStart + 11].Text,
-                //    CuttingType = tableData[indexStart + 12].Text,
-                //    ValidFrom = tableData[indexStart + 13].Text,
-                //    ValidTo = tableData[indexStart + 14].Text,
-                //});
-                results.Add(new Permit
+                permits.Add(new Permit
                 {
                     Number = values[1].Value,
                     Region = values[2].Value,
@@ -224,7 +101,8 @@ namespace PermitsScraper.Services
                     ValidTo = values[15].Value,
                 });
             }
-            return results;
+
+            return permits;
         }
     }
 }

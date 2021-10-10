@@ -1,9 +1,12 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using Common;
+using Microsoft.Extensions.Configuration;
+using PermitsScraper.Entities;
 using RestSharp;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace PermitsScraper.Services
 {
@@ -15,20 +18,16 @@ namespace PermitsScraper.Services
             _client = new RestClient(config.GetSection("ForestPermitsUrl").Value);
         }
 
-        public void GetHtml()
+        public IRestResponse GetPageResponse() => _client.Execute(new RestRequest(Method.GET));
+
+        public IRestResponse GetPageResponse(GetPageArgs args)
         {
-            var request = new RestRequest(Method.GET);
-            IRestResponse response = _client.Execute(request);
-            //Console.WriteLine(response.Content);
+            var request = new RestRequest(Method.POST);
+            request.AddHeader("Content-Type", "application/x-www-form-urlencoded");
+            request.AddHeader("Cookie", args.Cookie);
+            request.AddParameter("application/x-www-form-urlencoded", args.GetQueryString(), ParameterType.RequestBody);
 
-            var cookie = response.Headers.ToList()
-                .Find(x => x.Name == "Set-Cookie")
-                .Value.ToString().Split(";")[0];
-
-            request = new RestRequest(Method.POST);
-            request.AddHeader("Cookie", cookie);
-            response = _client.Execute(request);
-            Console.WriteLine(response.Content);
+            return _client.Execute(request);
         }
     }
 }
