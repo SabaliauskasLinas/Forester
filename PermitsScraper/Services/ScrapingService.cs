@@ -1,5 +1,5 @@
-﻿using HtmlAgilityPack;
-using PermitsScraper.Entities;
+﻿using Entities.Scraping;
+using HtmlAgilityPack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -46,8 +46,6 @@ namespace PermitsScraper.Services
                 var forestries = htmlDoc.DocumentNode.SelectNodes("//select[@id='DropDownList4']/option").Select(n => n.GetAttributeValue("value", string.Empty)).ToList();
                 foreach (var forestry in forestries)
                 {
-                    if (forestry == "Anciškių girininkija")
-                        Console.WriteLine("A");
                     args.ForestryFilterState = "on";
                     args.Forestry = forestry;
                     args.ButtonName = "Filtruoti";
@@ -90,8 +88,8 @@ namespace PermitsScraper.Services
                     OwnershipForm = values[4].Value,
                     Enterprise = values[5].Value,
                     Forestry = values[6].Value,
-                    Square = values[7].Value,
-                    Plots = values[8].Value,
+                    Block = values[7].Value,
+                    Sites = values[8].Value,
                     Area = values[9].Value,
                     CadastralLocation = values[10].Value,
                     CadastralBlock = values[11].Value,

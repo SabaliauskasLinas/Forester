@@ -1,4 +1,4 @@
-﻿using PermitsScraper.Entities;
+﻿using Entities.Scraping;
 using RestSharp;
 
 namespace PermitsScraper.Services

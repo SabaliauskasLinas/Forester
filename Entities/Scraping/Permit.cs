@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace PermitsScraper.Entities
+﻿namespace Entities.Scraping
 {
     public class Permit
     {
@@ -12,8 +8,8 @@ namespace PermitsScraper.Entities
         public string OwnershipForm { get; set; }
         public string Enterprise { get; set; }
         public string Forestry { get; set; }
-        public string Square { get; set; }
-        public string Plots { get; set; }
+        public string Block { get; set; }
+        public string Sites { get; set; }
         public string Area { get; set; }
         public string CadastralLocation { get; set; }
         public string CadastralBlock { get; set; }
