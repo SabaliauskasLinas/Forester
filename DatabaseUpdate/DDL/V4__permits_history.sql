@@ -1,0 +1,6 @@
+CREATE TABLE permits_history (
+	id INT PRIMARY KEY,
+	permit_id INT NOT NULL REFERENCES permits(id),
+	change VARCHAR ( 255 ) NOT NULL,
+	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

@@ -23,6 +23,7 @@ namespace PermitsScraper
 
             container.Register<IScrapingService, ScrapingService>(Lifestyle.Singleton);
             container.Register<IScrapingClientService, ScrapingClientService>(Lifestyle.Singleton);
+            container.Register<IPermitsImportService, PermitsImportService>(Lifestyle.Singleton);
             Repository.ObjectContainerInitializer.Init(container);
         }
 

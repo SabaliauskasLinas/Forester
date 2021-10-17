@@ -11,10 +11,12 @@ namespace PermitsScraper.Services
     {
         private readonly Regex _tableRegex = new Regex(@"<tr[^>]*>\s*<td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td>\s*<\/tr>");
         private readonly IScrapingClientService _scrapingClientService;
+        private readonly IPermitsImportService _permitsImportService;
 
-        public ScrapingService(IScrapingClientService scrapingClientService)
+        public ScrapingService(IScrapingClientService scrapingClientService, IPermitsImportService permitsImportService)
         {
             _scrapingClientService = scrapingClientService;
+            _permitsImportService = permitsImportService;
         }
 
         public void Run()
@@ -68,7 +70,14 @@ namespace PermitsScraper.Services
                             permits.AddRange(GetPermits(pageResponse.Content));
                         }
                     }
-                    Console.WriteLine($"{enterprise}: {forestry}, total permits - {permits.Count}");
+
+                    //Console.WriteLine($"{enterprise}: {forestry}, total permits - {permits.Count}");
+                    _permitsImportService.Import(new PermitsImportArgs
+                    {
+                        Enterprise = enterprise,
+                        Forestry = forestry,
+                        Permits = permits,
+                    });
                 }
             }
         }

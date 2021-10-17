@@ -14,7 +14,8 @@ namespace Repository
             Container = container;
 
             Container.Register<IDbRepository, DbRepository>(Lifestyle.Singleton);
-            Container.Register<ITestRepo, TestRepo>(Lifestyle.Singleton);
+            Container.Register<IEnterprisesRepository, EnterprisesRepository>(Lifestyle.Singleton);
+            Container.Register<IForestriesRepository, ForestriesRepository>(Lifestyle.Singleton);
         }
     }
 }
