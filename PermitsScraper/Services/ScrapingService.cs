@@ -1,6 +1,6 @@
-﻿using Entities.Scraping;
+﻿using Entities.Import;
+using Entities.Scraping;
 using HtmlAgilityPack;
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -55,7 +55,7 @@ namespace PermitsScraper.Services
                     htmlDoc.LoadHtml(pageResponse.Content);
                     args.ViewState = htmlDoc.GetElementbyId("__VIEWSTATE").GetAttributeValue("value", string.Empty);
 
-                    var permits = new List<Permit>();
+                    var permits = new List<ScrapedPermit>();
                     permits.AddRange(GetPermits(pageResponse.Content));
 
                     var totalPages = int.Parse(htmlDoc.GetElementbyId("Label1").GetDirectInnerText().Split("  ")[1]);
@@ -76,20 +76,20 @@ namespace PermitsScraper.Services
                     {
                         Enterprise = enterprise,
                         Forestry = forestry,
-                        Permits = permits,
+                        ScrapedPermits = permits,
                     });
                 }
             }
         }
 
-        private List<Permit> GetPermits(string page)
+        private List<ScrapedPermit> GetPermits(string page)
         {
-            var permits = new List<Permit>();
+            var permits = new List<ScrapedPermit>();
             var matches = _tableRegex.Matches(page);
             foreach (Match match in matches)
             {
                 var values = match.Groups.Values.ToArray();
-                permits.Add(new Permit
+                permits.Add(new ScrapedPermit
                 {
                     Number = values[1].Value,
                     Region = values[2].Value,

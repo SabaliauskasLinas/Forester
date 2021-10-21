@@ -157,7 +157,7 @@ namespace Repository
             foreach (var param in command.Parameters.Keys)
             {
                 var a = command.Parameters[param];
-                cmd.Parameters.AddWithValue(a.Name, a.Value);
+                cmd.Parameters.AddWithValue(a.Name, a.Value ?? DBNull.Value);
             }
             return cmd;
         }

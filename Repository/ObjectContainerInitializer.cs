@@ -18,6 +18,7 @@ namespace Repository
             Container.Register<IForestriesRepository, ForestriesRepository>(Lifestyle.Singleton);
             Container.Register<IBlocksRepository, BlocksRepository>(Lifestyle.Singleton);
             Container.Register<ISitesRepository, SitesRepository>(Lifestyle.Singleton);
+            Container.Register<IPermitsRepository, PermitsRepository>(Lifestyle.Singleton);
         }
     }
 }

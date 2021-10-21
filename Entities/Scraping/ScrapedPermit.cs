@@ -1,6 +1,6 @@
 ﻿namespace Entities.Scraping
 {
-    public class Permit
+    public class ScrapedPermit
     {
         public string Number { get; set; }
         public string Region { get; set; }
