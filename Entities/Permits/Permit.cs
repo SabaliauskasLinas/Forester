@@ -1,6 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 
-namespace Entities.Import
+namespace Entities.Permits
 {
     public class Permit
     {
@@ -17,5 +18,6 @@ namespace Entities.Import
         public string CuttingType { get; set; }
         public DateTime ValidFrom { get; set; }
         public DateTime ValidTo { get; set; }
+        public List<PermitBlock> PermitBlocks { get; set; }
     }
 }

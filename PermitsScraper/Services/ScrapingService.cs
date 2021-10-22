@@ -1,4 +1,4 @@
-﻿using Entities.Import;
+﻿using Entities.Permits;
 using Entities.Scraping;
 using HtmlAgilityPack;
 using System.Collections.Generic;

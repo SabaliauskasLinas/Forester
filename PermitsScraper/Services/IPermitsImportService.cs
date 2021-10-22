@@ -1,4 +1,4 @@
-﻿using Entities.Import;
+﻿using Entities.Permits;
 
 namespace PermitsScraper.Services
 {

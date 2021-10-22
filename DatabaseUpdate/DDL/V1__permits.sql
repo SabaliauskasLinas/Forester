@@ -15,3 +15,6 @@
 	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 	updated_at TIMESTAMP
 );
+
+CREATE INDEX ix_permits_PermitNumber
+ON permits (permit_number);

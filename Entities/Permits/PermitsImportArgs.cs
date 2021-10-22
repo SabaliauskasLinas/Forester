@@ -1,7 +1,7 @@
 ﻿using Entities.Scraping;
 using System.Collections.Generic;
 
-namespace Entities.Import
+namespace Entities.Permits
 {
     public class PermitsImportArgs
     {
