@@ -48,10 +48,9 @@ namespace PermitsScraper.Services
             foreach (var permitGroupByNumber in permitGroupsByNumber)
             {
                 var generalPermitInfo = permitGroupByNumber.FirstOrDefault();
-
-                // Get full permit by PermitNumber
                 var existingPermit = _permitsRepository.GetFullPermit(generalPermitInfo.Number);
-                var permit = new Permit
+
+                var newPermit = new Permit
                 {
                     PermitNumber = generalPermitInfo.Number,
                     Region = generalPermitInfo.Region,
@@ -70,12 +69,12 @@ namespace PermitsScraper.Services
                 //Find Differences
                 if (existingPermit != null)
                 {
-                    //UpdatePermit(existingPermit, permit);
-                    permit.Id = existingPermit.Id;
+                    UpdatePermit(existingPermit, newPermit, enterprise, forestry);
+                    newPermit.Id = existingPermit.Id;
                 }
                 else
                 {
-                    permit.Id = _permitsRepository.InsertPermit(permit);
+                    newPermit.Id = _permitsRepository.InsertPermit(newPermit);
                 }
 
                 var newPermitBlocks = new List<PermitBlock>();
@@ -91,7 +90,7 @@ namespace PermitsScraper.Services
                     }
                     var permitBlock = new PermitBlock
                     {
-                        PermitId = permit.Id,
+                        PermitId = newPermit.Id,
                         CadastralBlockId = cadastralBlockId.Value,
                     };
 
@@ -225,24 +224,39 @@ namespace PermitsScraper.Services
 
             if (foundEnterprise == null)
             {
-                var enterpriseNameFragments = enterpriseName.Split(" ").ToList();
-                foreach (var primaryNameFragment in enterpriseNameFragments)
+                var enterprise = _enterprisesRepository.GetEnterpriseByFullName(enterpriseName);
+                if (enterprise != null)
                 {
-                    var enterprises = _enterprisesRepository.GetEnterprisesByNameFragment(primaryNameFragment);
-                    if (enterprises.Count == 1)
+                    foundEnterprise = enterprise;
+                    _enterprisesCache.Add(enterpriseName, foundEnterprise);
+                }
+                else
+                {
+                    var enterpriseNameFragments = enterpriseName.Split(" ").ToList();
+                    foreach (var primaryNameFragment in enterpriseNameFragments)
                     {
-                        foundEnterprise = enterprises[0];
-                        _enterprisesCache.Add(enterpriseName, foundEnterprise);
-                        break;
-                    }
-                    else if (enterprises.Count > 1)
-                    {
-                        var secondaryNameFragments = new List<string>(enterpriseNameFragments);
-                        secondaryNameFragments.Remove(primaryNameFragment);
-                        foundEnterprise = enterprises.Find(e => secondaryNameFragments.Any(fragment => e.Name.Contains(fragment))) ?? enterprises.Find(e => e.Name.Split(" ").Length == 1);
+                        var enterprises = _enterprisesRepository.GetEnterprisesByNameFragment(primaryNameFragment);
+                        if (enterprises.Count == 1)
+                        {
+                            foundEnterprise = enterprises[0];
+                            _enterprisesCache.Add(enterpriseName, foundEnterprise);
+                            break;
+                        }
+                        else if (enterprises.Count > 1)
+                        {
+                            var secondaryNameFragments = new List<string>(enterpriseNameFragments);
+                            secondaryNameFragments.Remove(primaryNameFragment);
+                            foundEnterprise = enterprises.Find(e => secondaryNameFragments.Any(fragment => e.Name.Contains(fragment))) ?? enterprises.Find(e => e.Name.Split(" ").Length == 1);
 
-                        _enterprisesCache.Add(enterpriseName, foundEnterprise);
-                        break;
+                            _enterprisesCache.Add(enterpriseName, foundEnterprise);
+                            break;
+                        }
+                    }
+
+                    if (foundEnterprise != null)
+                    {
+                        foundEnterprise.FullName = enterpriseName;
+                        _enterprisesRepository.UpdateFullName(foundEnterprise.Id, enterpriseName);
                     }
                 }
             }
@@ -254,23 +268,37 @@ namespace PermitsScraper.Services
         private Forestry GetForestry(int enterpriseCode, string forestryName)
         {
             Forestry foundForestry = null;
-            var forestryNameFragments = forestryName.Split(" ").ToList();
-            foreach (var primaryNameFragment in forestryNameFragments)
+            var forestry = _forestriesRepository.GetForestryByFullName(enterpriseCode, forestryName);
+            if (forestry != null)
             {
-                var forestries = _forestriesRepository.GetForestries(enterpriseCode, primaryNameFragment);
-
-                if (forestries.Count == 1)
+                foundForestry = forestry;
+            }
+            else
+            {
+                var forestryNameFragments = forestryName.Split(" ").ToList();
+                foreach (var primaryNameFragment in forestryNameFragments)
                 {
-                    foundForestry = forestries[0];
-                    break;
+                    var forestries = _forestriesRepository.GetForestries(enterpriseCode, primaryNameFragment);
+
+                    if (forestries.Count == 1)
+                    {
+                        foundForestry = forestries[0];
+                        break;
+                    }
+                    else if (forestries.Count > 1)
+                    {
+                        var secondaryNameFragments = new List<string>(forestryNameFragments);
+                        secondaryNameFragments.Remove(primaryNameFragment);
+                        foundForestry = forestries.Find(f => secondaryNameFragments.Any(fragment => f.Name.Contains(fragment))) ?? forestries.Find(f => f.Name.Split(" ").Length == 1);
+
+                        break;
+                    }
                 }
-                else if (forestries.Count > 1)
-                {
-                    var secondaryNameFragments = new List<string>(forestryNameFragments);
-                    secondaryNameFragments.Remove(primaryNameFragment);
-                    foundForestry = forestries.Find(f => secondaryNameFragments.Any(fragment => f.Name.Contains(fragment))) ?? forestries.Find(f => f.Name.Split(" ").Length == 1);
 
-                    break;
+                if (foundForestry != null)
+                {
+                    foundForestry.FullName = forestryName;
+                    _forestriesRepository.UpdateFullName(foundForestry.Id, forestryName);
                 }
             }
 
@@ -284,6 +312,90 @@ namespace PermitsScraper.Services
             //    Console.WriteLine($"mu_kod: {enterpriseCode}, Found gir_kod: {foundForestry.Code}");
 
             return foundForestry;
+        }
+
+        private void UpdatePermit(Permit existingPermit, Permit newPermit, Enterprise newEnterprise, Forestry newForestry)
+        {
+            var changes = new List<string>();
+            if(existingPermit.Region != newPermit.Region)
+            {
+                changes.Add($"Regionas: {existingPermit.Region} -> {newPermit.Region}");
+                existingPermit.Region = newPermit.Region;
+            }
+
+            if (existingPermit.District != newPermit.District)
+            {
+                changes.Add($"Rajonas: {existingPermit.District} -> {newPermit.District}");
+                existingPermit.District = newPermit.District;
+            }
+
+            if (existingPermit.OwnershipForm != newPermit.OwnershipForm)
+            {
+                changes.Add($"Nuosavybės forma: {existingPermit.OwnershipForm} -> {newPermit.OwnershipForm}");
+                existingPermit.OwnershipForm = newPermit.OwnershipForm;
+            }
+
+            if (existingPermit.OwnershipForm != newPermit.OwnershipForm)
+            {
+                changes.Add($"Nuosavybės forma: {existingPermit.OwnershipForm} -> {newPermit.OwnershipForm}");
+                existingPermit.OwnershipForm = newPermit.OwnershipForm;
+            }
+
+            if (existingPermit.CadastralEnterpriseId != newPermit.CadastralEnterpriseId)
+            {
+                var existingEnterpriseFullName = _enterprisesRepository.GetFullName(existingPermit.CadastralForestryId);
+                changes.Add($"Ūrėdija: {existingEnterpriseFullName} -> {newEnterprise.FullName}");
+                existingPermit.CadastralEnterpriseId = newPermit.CadastralEnterpriseId;
+            }
+
+            if (existingPermit.CadastralForestryId != newPermit.CadastralForestryId)
+            {
+                var existingForestryFullName = _forestriesRepository.GetFullName(existingPermit.CadastralForestryId);
+                changes.Add($"Girininkija: {existingForestryFullName} -> {newForestry.FullName}");
+                existingPermit.CadastralForestryId = newPermit.CadastralForestryId;
+            }
+
+            if (existingPermit.CadastralLocation != newPermit.CadastralLocation)
+            {
+                changes.Add($"Kadastro vietovė: {existingPermit.CadastralLocation} -> {newPermit.CadastralLocation}");
+                existingPermit.CadastralLocation = newPermit.CadastralLocation;
+            }
+
+            if (existingPermit.CadastralBlock != newPermit.CadastralBlock)
+            {
+                changes.Add($"Kadastro blokas: {existingPermit.CadastralBlock} -> {newPermit.CadastralBlock}");
+                existingPermit.CadastralBlock = newPermit.CadastralBlock;
+            }
+
+            if (existingPermit.CadastralNumber != newPermit.CadastralNumber)
+            {
+                changes.Add($"Kadastro numeris: {existingPermit.CadastralNumber} -> {newPermit.CadastralNumber}");
+                existingPermit.CadastralNumber = newPermit.CadastralNumber;
+            }
+
+            if (existingPermit.CuttingType != newPermit.CuttingType)
+            {
+                changes.Add($"Kirtimo tipas: {existingPermit.CuttingType} -> {newPermit.CuttingType}");
+                existingPermit.CuttingType = newPermit.CuttingType;
+            }
+
+            if (existingPermit.ValidFrom != newPermit.ValidFrom)
+            {
+                changes.Add($"Galiojimo pradžia: {existingPermit.ValidFrom} -> {newPermit.ValidFrom}");
+                existingPermit.ValidFrom = newPermit.ValidFrom;
+            }
+
+            if (existingPermit.ValidTo != newPermit.ValidTo)
+            {
+                changes.Add($"Galiojimo pabaiga: {existingPermit.ValidTo} -> {newPermit.ValidTo}");
+                existingPermit.ValidTo = newPermit.ValidTo;
+            }
+
+            if (changes.Count > 0)
+            {
+                _permitsRepository.UpdatePermit(existingPermit);
+                _permitsRepository.InsertPermitHistory(existingPermit.Id, changes);
+            }
         }
     }
 }

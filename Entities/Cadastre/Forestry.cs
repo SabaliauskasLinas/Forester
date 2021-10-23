@@ -9,5 +9,6 @@ namespace Entities.Cadastre
         public int Id { get; set; }
         public int Code { get; set; }
         public string Name { get; set; }
+        public string FullName { get; set; }
     }
 }

@@ -72,6 +72,41 @@ namespace Repository.Repositories
             return _repository.RawSqlExecuteScalar(sql).ChangeType<int>();
         }
 
+        public void UpdatePermit(Permit permit)
+        {
+            var sql = new RawSqlCommand(@"
+                UPDATE permits
+                SET 
+                    region = @Region,
+                    district = @District,
+                    ownership_form = @OwnershipForm,
+                    cadastral_enterprise_id = @CadastralEnterpriseId,
+                    cadastral_forestry_id = @CadastralForestryId,
+                    cadastral_location = @CadastralLocation,
+                    cadastral_block = @CadastralBlock,
+                    cadastral_number = @CadastralNumber,
+                    cutting_type = @CuttingType,
+                    valid_from = @ValidFrom,
+                    valid_to = @ValidTo,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = @Id;
+            ");
+
+            sql.AddParameter("Id", permit.Id);
+            sql.AddParameter("Region", permit.Region);
+            sql.AddParameter("District", permit.District);
+            sql.AddParameter("OwnershipForm", permit.OwnershipForm);
+            sql.AddParameter("CadastralEnterpriseId", permit.CadastralEnterpriseId);
+            sql.AddParameter("CadastralForestryId", permit.CadastralForestryId);
+            sql.AddParameter("CadastralLocation", permit.CadastralLocation);
+            sql.AddParameter("CadastralBlock", permit.CadastralBlock);
+            sql.AddParameter("CuttingType", permit.CuttingType);
+            sql.AddParameter("ValidFrom", permit.ValidFrom);
+            sql.AddParameter("ValidTo", permit.ValidTo);
+
+            _repository.RawSqlExecuteNonQuery(sql);
+        }
+
         public void UpdateBlockHasUnmappedSite(int permitBlockId, bool hasUnmappedSite)
         {
             var sql = new RawSqlCommand(@"
@@ -137,6 +172,27 @@ namespace Repository.Repositories
             ");
 
             _repository.RawSqlExecuteNonQuery(sql);
+        }
+
+        public void InsertPermitHistory(int permitId, List<string> changes)
+        {
+            var sql = new RawSqlCommand("INSERT INTO permits_history (permit_id, change) VALUES ");
+
+            sql.AddParameter("permitId", permitId);
+
+            var counter = 0;
+            foreach (var change in changes)
+            {
+                if (change == changes.Last())
+                    sql.CommandText += $"(@permitId, @change{counter});";
+                else
+                    sql.CommandText += $"(@permitId, @change{counter})),";
+
+                sql.AddParameter($"change{counter}", change);
+                counter++;
+            }
+
+            _repository.RawSqlExecuteScalar(sql).ChangeType<int>();
         }
     }
 }
