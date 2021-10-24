@@ -1,5 +1,6 @@
 ﻿using Entities.Cadastre;
 using Entities.Permits;
+using Entities.Scraping;
 using Repository.Repositories;
 using System;
 using System.Collections.Generic;
@@ -44,8 +45,7 @@ namespace PermitsScraper.Services
                 return;
             }
 
-            var permitGroupsByNumber = args.ScrapedPermits.GroupBy(p => p.Number);
-            foreach (var permitGroupByNumber in permitGroupsByNumber)
+            foreach (var permitGroupByNumber in args.ScrapedPermits.GroupBy(p => p.Number))
             {
                 var generalPermitInfo = permitGroupByNumber.FirstOrDefault();
                 var existingPermit = _permitsRepository.GetFullPermit(generalPermitInfo.Number);
@@ -77,15 +77,18 @@ namespace PermitsScraper.Services
                     newPermit.Id = _permitsRepository.InsertPermit(newPermit);
                 }
 
+                var unhandledExistingPermitBlocks = new List<PermitBlock>();
+                if (existingPermit?.PermitBlocks?.Count > 0)
+                    unhandledExistingPermitBlocks.AddRange(existingPermit.PermitBlocks);
+
                 var newPermitBlocks = new List<PermitBlock>();
-                var permitGroupsByBlock = permitGroupByNumber.GroupBy(pg => pg.Block);
-                foreach(var permitGroupByBlock in permitGroupsByBlock)
+                foreach(var permitGroupByBlock in permitGroupByNumber.GroupBy(pg => pg.Block))
                 {
                     var defaultPermitBlockInfo = permitGroupByBlock.FirstOrDefault();
                     var cadastralBlockId = _blocksRepository.GetBlockId(enterprise.Code, forestry.Code, defaultPermitBlockInfo.Block);
                     if (!cadastralBlockId.HasValue)
                     {
-                        Console.WriteLine($"Block not found");
+                        Console.WriteLine("Block not found");
                         continue;
                     }
                     var permitBlock = new PermitBlock
@@ -96,87 +99,24 @@ namespace PermitsScraper.Services
 
                     var existingPermitBlock = existingPermit?.PermitBlocks?.Find(pb => pb.CadastralBlockId == cadastralBlockId.Value);
                     if (existingPermitBlock != null)
-                        permitBlock.Id = existingPermitBlock.Id;
-                    else
-                        permitBlock.Id = _permitsRepository.InsertPermitBlock(permitBlock);
-
-                    var newPermitSites = new List<PermitSite>();
-                    foreach (var permitByBlock in permitGroupByBlock)
                     {
-                        var sites = permitByBlock.Sites.Split(new[] { "-", ",", "/", @"\", ";", "/", "_" }, StringSplitOptions.RemoveEmptyEntries);
-                        var area = decimal.Parse(permitByBlock.Area);
-                        foreach (var site in sites)
-                        {
-                            // Get site id by mu_kod, gir_kod, kv_nr and skl_nr | mu_kod: 52, gir_kod: 3, kv_nr: 10, skl_nr: 11 -> id: 718119
-                            var cadastralSiteId = _sitesRepository.GetSiteId(enterprise.Code, forestry.Code, defaultPermitBlockInfo.Block, site);
-                            if (cadastralSiteId.HasValue)
-                            {
-                                newPermitSites.Add(new PermitSite
-                                {
-                                    PermitBlockId = permitBlock.Id,
-                                    CadastralSiteId = cadastralSiteId,
-                                    SiteCodes = new List<string> { site },
-                                    Area = area,
-                                });
-                                Console.WriteLine($"Site found");
-                            }
-                            else
-                            {
-                                var parentSite = Regex.Replace(site, "[^0-9.]", "");
-                                if (site != parentSite)
-                                {
-                                    var parentCadastralSiteId = _sitesRepository.GetSiteId(enterprise.Code, forestry.Code, defaultPermitBlockInfo.Block, parentSite);
-                                    if (parentCadastralSiteId.HasValue)
-                                    {
-                                        var existingPermitSite = newPermitSites.Find(p => p.CadastralSiteId == parentCadastralSiteId);
-                                        if (existingPermitSite != null)
-                                            existingPermitSite.SiteCodes.Add(parentSite);
-                                        else
-                                            newPermitSites.Add(new PermitSite
-                                            {
-                                                PermitBlockId = permitBlock.Id,
-                                                CadastralSiteId = parentCadastralSiteId,
-                                                SiteCodes = new List<string> { site },
-                                                Area = area,
-                                            });
-
-                                        Console.WriteLine($"Parent site found");
-                                    }
-                                    else
-                                    {
-                                        newPermitSites.Add(new PermitSite
-                                        {
-                                            PermitBlockId = permitBlock.Id,
-                                            CadastralSiteId = null,
-                                            SiteCodes = new List<string> { site },
-                                            Area = area,
-                                        });
-                                        Console.WriteLine($"Parent site not found: {parentSite} | Enterprise: {args.Enterprise}, Forestry: {args.Forestry}, Block: {defaultPermitBlockInfo.Block}");
-                                    }
-                                }
-                                else
-                                {
-                                    newPermitSites.Add(new PermitSite
-                                    {
-                                        PermitBlockId = permitBlock.Id,
-                                        CadastralSiteId = null,
-                                        SiteCodes = new List<string> { site },
-                                        Area = area,
-                                    });
-                                    Console.WriteLine($"Site not found: {site} | Enterprise: {args.Enterprise}, Forestry: {args.Forestry}, Block: {defaultPermitBlockInfo.Block}");
-                                }
-                            }
-                        }
+                        unhandledExistingPermitBlocks.Remove(existingPermitBlock);
+                        permitBlock.Id = existingPermitBlock.Id;
                     }
+                    else
+                        _permitsRepository.InsertPermitBlock(permitBlock);
 
-                    permitBlock.PermitSites = newPermitSites;
+                    if (existingPermit != null && existingPermitBlock == null)
+                        _permitsRepository.InsertPermitHistory(newPermit.Id, $"Naujas kvartalas: {defaultPermitBlockInfo.Block}");
+
+                    permitBlock.PermitSites = GetNewPermitSites(permitGroupByBlock, enterprise, forestry, permitBlock);
                     newPermitBlocks.Add(permitBlock);
 
                     var unhandledExistingPermitSites = new List<PermitSite>();
                     if (existingPermitBlock?.PermitSites?.Count > 0)
                         unhandledExistingPermitSites.AddRange(existingPermitBlock.PermitSites);
 
-                    foreach (var newPermitSite in newPermitSites)
+                    foreach (var newPermitSite in permitBlock.PermitSites)
                     {
                         if (unhandledExistingPermitSites.Count > 0)
                         {
@@ -184,7 +124,7 @@ namespace PermitsScraper.Services
                             if (existingPermitSite != null)
                             {
                                 unhandledExistingPermitSites.Remove(existingPermitSite);
-                                //update existing permit site
+                                UpdatePermitSite(existingPermitSite, newPermitSite, existingPermit.Id);
                             }
                             else
                             {
@@ -192,12 +132,12 @@ namespace PermitsScraper.Services
                                 if (existingUnmappedPermitSite != null)
                                 {
                                     unhandledExistingPermitSites.Remove(existingPermitSite);
-                                    // update existing unmapped permit site
+                                    UpdatePermitSite(existingUnmappedPermitSite, newPermitSite, existingPermit.Id);
                                 }
                                 else
                                 {
-                                    // insert new permit site
                                     _permitsRepository.InsertPermitSite(newPermitSite);
+                                    _permitsRepository.InsertPermitHistory(existingPermit.Id, newPermitSite.SiteCodes.Count > 1 ? $"Nauji sklypai: {string.Join(", ", newPermitSite.SiteCodes)}" : $"Naujas sklypas: {newPermitSite.SiteCodes[0]}");
                                 }
                             }
                         }
@@ -205,13 +145,28 @@ namespace PermitsScraper.Services
                             _permitsRepository.InsertPermitSite(newPermitSite);
                     }
 
-                    //delete removed PermitSites
+                    //Delete removed permit sites
                     if (unhandledExistingPermitSites.Count > 0)
+                    {
                         _permitsRepository.DeletePermitSites(unhandledExistingPermitSites.Select(ps => ps.Id).ToList());
+                        foreach (var unhandledExistingPermitSite in unhandledExistingPermitSites)
+                            _permitsRepository.InsertPermitHistory(existingPermit.Id, unhandledExistingPermitSite.SiteCodes.Count > 1 ? $"Ištrinti sklypai: {string.Join(", ", unhandledExistingPermitSite.SiteCodes)}" : $"Ištrintas sklypas: {unhandledExistingPermitSite.SiteCodes[0]}");
+                    }
 
-                    var blockHasUnmappedSite = newPermitSites.Any(p => !p.CadastralSiteId.HasValue);
+                    var blockHasUnmappedSite = permitBlock.PermitSites.Any(p => !p.CadastralSiteId.HasValue);
                     if (existingPermitBlock.HasUnmappedSites != blockHasUnmappedSite)
-                        _permitsRepository.UpdateBlockHasUnmappedSite(permitBlock.Id, blockHasUnmappedSite);
+                    {
+                        existingPermitBlock.HasUnmappedSites = blockHasUnmappedSite;
+                        _permitsRepository.UpdatePermitBlock(existingPermitBlock);
+                    }
+                }
+
+                //Delete removed permit blocks
+                if (unhandledExistingPermitBlocks.Count > 0)
+                {
+                    _permitsRepository.DeletePermitBlocks(unhandledExistingPermitBlocks.Select(ps => ps.Id).ToList());
+                    foreach (var unhandledExistingPermitBlock in unhandledExistingPermitBlocks)
+                        _permitsRepository.InsertPermitHistory(existingPermit.Id, $"Ištrintas sklypas: {_blocksRepository.GetBlockNumberById(unhandledExistingPermitBlock.Id)}");
                 }
             }
         }
@@ -396,6 +351,103 @@ namespace PermitsScraper.Services
                 _permitsRepository.UpdatePermit(existingPermit);
                 _permitsRepository.InsertPermitHistory(existingPermit.Id, changes);
             }
+        }
+
+        private void UpdatePermitSite(PermitSite existingPermitSite, PermitSite newPermitSite, int permitId)
+        {
+            var changes = new List<string>();
+            if (existingPermitSite.Area != newPermitSite.Area)
+            {
+                changes.Add($"{string.Join(", ",existingPermitSite.SiteCodes)} sklypo(-ų) plotas: {existingPermitSite.Area} -> {newPermitSite.Area}");
+                existingPermitSite.Area = newPermitSite.Area;
+            }
+
+            if (existingPermitSite.SiteCodes.All(newPermitSite.SiteCodes.Contains))
+            {
+                changes.Add($"Posklypiai: {string.Join(", ", existingPermitSite.SiteCodes)} -> {string.Join(", ", newPermitSite.SiteCodes)}");
+                existingPermitSite.SiteCodes = newPermitSite.SiteCodes;
+            }
+
+            if (changes.Count > 0)
+            {
+                _permitsRepository.UpdatePermitSite(existingPermitSite);
+                _permitsRepository.InsertPermitHistory(permitId, changes);
+            }
+        }
+
+        private List<PermitSite> GetNewPermitSites(IGrouping<string, ScrapedPermit> permitGroupByBlock, Enterprise enterprise, Forestry forestry, PermitBlock permitBlock)
+        {
+            var defaultPermitBlockInfo = permitGroupByBlock.FirstOrDefault();
+            var newPermitSites = new List<PermitSite>();
+            foreach (var permitByBlock in permitGroupByBlock)
+            {
+                var sites = permitByBlock.Sites.Split(new[] { "-", ",", "/", @"\", ";", "/", "_" }, StringSplitOptions.RemoveEmptyEntries);
+                var area = decimal.Parse(permitByBlock.Area);
+                foreach (var site in sites)
+                {
+                    // Get site id by mu_kod, gir_kod, kv_nr and skl_nr | mu_kod: 52, gir_kod: 3, kv_nr: 10, skl_nr: 11 -> id: 718119
+                    var cadastralSiteId = _sitesRepository.GetSiteId(enterprise.Code, forestry.Code, defaultPermitBlockInfo.Block, site);
+                    if (cadastralSiteId.HasValue)
+                    {
+                        newPermitSites.Add(new PermitSite
+                        {
+                            PermitBlockId = permitBlock.Id,
+                            CadastralSiteId = cadastralSiteId,
+                            SiteCodes = new List<string> { site },
+                            Area = area,
+                        });
+                        Console.WriteLine($"Site found");
+                    }
+                    else
+                    {
+                        var parentSite = Regex.Replace(site, "[^0-9.]", "");
+                        if (site != parentSite)
+                        {
+                            var parentCadastralSiteId = _sitesRepository.GetSiteId(enterprise.Code, forestry.Code, defaultPermitBlockInfo.Block, parentSite);
+                            if (parentCadastralSiteId.HasValue)
+                            {
+                                var existingPermitSite = newPermitSites.Find(p => p.CadastralSiteId == parentCadastralSiteId);
+                                if (existingPermitSite != null)
+                                    existingPermitSite.SiteCodes.Add(parentSite);
+                                else
+                                    newPermitSites.Add(new PermitSite
+                                    {
+                                        PermitBlockId = permitBlock.Id,
+                                        CadastralSiteId = parentCadastralSiteId,
+                                        SiteCodes = new List<string> { site },
+                                        Area = area,
+                                    });
+
+                                Console.WriteLine($"Parent site found");
+                            }
+                            else
+                            {
+                                newPermitSites.Add(new PermitSite
+                                {
+                                    PermitBlockId = permitBlock.Id,
+                                    CadastralSiteId = null,
+                                    SiteCodes = new List<string> { site },
+                                    Area = area,
+                                });
+                                Console.WriteLine($"Parent site not found: {parentSite}");
+                            }
+                        }
+                        else
+                        {
+                            newPermitSites.Add(new PermitSite
+                            {
+                                PermitBlockId = permitBlock.Id,
+                                CadastralSiteId = null,
+                                SiteCodes = new List<string> { site },
+                                Area = area,
+                            });
+                            Console.WriteLine($"Site not found: {site}");
+                        }
+                    }
+                }
+            }
+
+            return newPermitSites;
         }
     }
 }

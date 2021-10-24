@@ -28,5 +28,18 @@ namespace Repository.Repositories
 
             return _repository.RawSqlExecuteScalar(sql).ChangeType<int?>();
         }
+
+        public string GetBlockNumberById(int cadastralBlockId)
+        {
+            var sql = new RawSqlCommand(@"
+                SELECT kv_nr
+                FROM blocks
+                WHERE id = @cadastralBlockId;
+            ");
+
+            sql.AddParameter("cadastralBlockId", cadastralBlockId);
+
+            return _repository.RawSqlExecuteScalar(sql).ChangeType<string>();
+        }
     }
 }

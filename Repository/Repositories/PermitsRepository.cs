@@ -107,16 +107,36 @@ namespace Repository.Repositories
             _repository.RawSqlExecuteNonQuery(sql);
         }
 
-        public void UpdateBlockHasUnmappedSite(int permitBlockId, bool hasUnmappedSite)
+        public void UpdatePermitBlock(PermitBlock permitBlock)
         {
             var sql = new RawSqlCommand(@"
                 UPDATE permits_blocks
-                SET has_unmapped_sites = @hasUnmappedSite
-                WHERE id = @id;
+                SET 
+                    has_unmapped_sites = @HasUnmappedSites,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = @Id;
             ");
 
-            sql.AddParameter("id", permitBlockId);
-            sql.AddParameter("hasUnmappedSite", hasUnmappedSite);
+            sql.AddParameter("Id", permitBlock.Id);
+            sql.AddParameter("HasUnmappedSites", permitBlock.HasUnmappedSites);
+
+            _repository.RawSqlExecuteNonQuery(sql);
+        }
+
+        public void UpdatePermitSite(PermitSite permitSite)
+        {
+            var sql = new RawSqlCommand(@"
+                UPDATE permits_sites
+                SET
+                    area = @Area,
+                    site_codes = @SiteCodes,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = @Id;
+            ");
+
+            sql.AddParameter("Id", permitSite.Id);
+            sql.AddParameter("Area", permitSite.Area);
+            sql.AddParameter("SiteCodes", string.Join(",", permitSite.SiteCodes));
 
             _repository.RawSqlExecuteNonQuery(sql);
         }
@@ -173,6 +193,18 @@ namespace Repository.Repositories
 
             _repository.RawSqlExecuteNonQuery(sql);
         }
+
+        public void DeletePermitBlocks(List<int> ids)
+        {
+            var sql = new RawSqlCommand($@"
+                DELETE FROM permits_blocks
+                WHERE id IN ({string.Join(",", ids)});
+            ");
+
+            _repository.RawSqlExecuteNonQuery(sql);
+        }
+
+        public void InsertPermitHistory(int permitId, string change) => InsertPermitHistory(permitId, new List<string> { change });
 
         public void InsertPermitHistory(int permitId, List<string> changes)
         {

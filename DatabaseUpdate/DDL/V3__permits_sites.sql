@@ -4,5 +4,6 @@
 	cadastral_site_id INT NULL REFERENCES sites(id),
 	site_codes VARCHAR ( 255 ) NULL,
 	area NUMERIC(5,2) NOT NULL,
-	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+	updated_at TIMESTAMP
 );
