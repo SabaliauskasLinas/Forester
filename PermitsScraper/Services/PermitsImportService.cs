@@ -174,7 +174,7 @@ namespace PermitsScraper.Services
                                 var existingUnmappedPermitSite = unhandledExistingPermitSites.Find(ps => ps.CadastralSiteId == null && newPermitSite.CadastralSiteId == null && ps.SiteCodes[0] == newPermitSite.SiteCodes[0]);
                                 if (existingUnmappedPermitSite != null)
                                 {
-                                    unhandledExistingPermitSites.Remove(existingPermitSite);
+                                    unhandledExistingPermitSites.Remove(existingUnmappedPermitSite);
                                     var changes = GetPermitSiteChanges(existingUnmappedPermitSite, newPermitSite);
                                     if (changes.Count > 0)
                                     {
@@ -230,7 +230,7 @@ namespace PermitsScraper.Services
                     {
                         _permitsRepository.DeletePermitSites(unhandledExistingPermitBlock.Id);
                         _permitsRepository.DeletePermitBlock(unhandledExistingPermitBlock.Id);
-                        _permitsRepository.InsertPermitHistory(existingPermit.Id, $"Ištrintas sklypas: {_blocksRepository.GetBlockNumberById(unhandledExistingPermitBlock.CadastralBlockId)}");
+                        _permitsRepository.InsertPermitHistory(existingPermit.Id, $"Ištrintas kvartalas: {_blocksRepository.GetBlockNumberById(unhandledExistingPermitBlock.CadastralBlockId)}");
                     }
 
                     AddTotalUpdated(result, ref permitUpdated);
