@@ -333,3 +333,4 @@ ASALocalRun/
 # Local History for Visual Studio
 .localhistory/
 PermitsScraper/appsettings.json
+PermitsScraper/log4net.config

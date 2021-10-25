@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using Common.Log;
+using Microsoft.Extensions.Configuration;
 using PermitsScraper.Services;
 using SimpleInjector;
 using System;
@@ -21,6 +22,7 @@ namespace PermitsScraper
 
             container.Register(() => configuration, Lifestyle.Singleton);
 
+            container.Register<ILogProvider, LogProvider>(Lifestyle.Singleton);
             container.Register<IScrapingService, ScrapingService>(Lifestyle.Singleton);
             container.Register<IScrapingClientService, ScrapingClientService>(Lifestyle.Singleton);
             container.Register<IPermitsImportService, PermitsImportService>(Lifestyle.Singleton);

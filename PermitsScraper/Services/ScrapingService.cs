@@ -1,4 +1,5 @@
-﻿using Entities.Permits;
+﻿using Common.Log;
+using Entities.Permits;
 using Entities.Scraping;
 using HtmlAgilityPack;
 using System.Collections.Generic;
@@ -12,15 +13,20 @@ namespace PermitsScraper.Services
         private readonly Regex _tableRegex = new Regex(@"<tr[^>]*>\s*<td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td><td><font[^>]*>([^<]+)<\/font><\/td>\s*<\/tr>");
         private readonly IScrapingClientService _scrapingClientService;
         private readonly IPermitsImportService _permitsImportService;
+        private readonly ILog _log;
 
-        public ScrapingService(IScrapingClientService scrapingClientService, IPermitsImportService permitsImportService)
+        public ScrapingService(ILogProvider logProvider, IScrapingClientService scrapingClientService, IPermitsImportService permitsImportService)
         {
+            _log = logProvider.Get<ScrapingService>();
             _scrapingClientService = scrapingClientService;
             _permitsImportService = permitsImportService;
         }
 
         public void Run()
         {
+            _log.Info($"Scraping started");
+            _log.Warn($"Scraping started");
+            _log.Error($"Scraping started");
             var htmlDoc = new HtmlDocument();
             var pageResponse = _scrapingClientService.GetPageResponse();
             htmlDoc.LoadHtml(pageResponse.Content);
