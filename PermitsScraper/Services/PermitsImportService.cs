@@ -178,7 +178,7 @@ namespace PermitsScraper.Services
                                     var changes = GetPermitSiteChanges(existingUnmappedPermitSite, newPermitSite);
                                     if (changes.Count > 0)
                                     {
-                                        _permitsRepository.UpdatePermitSite(existingPermitSite);
+                                        _permitsRepository.UpdatePermitSite(existingUnmappedPermitSite);
                                         _permitsRepository.InsertPermitHistory(existingPermit.Id, changes);
                                         AddTotalUpdated(result, ref permitUpdated);
                                     }
