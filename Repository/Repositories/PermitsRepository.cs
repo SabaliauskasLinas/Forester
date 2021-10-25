@@ -35,7 +35,7 @@ namespace Repository.Repositories
             sql.AddParameter("cadastralLocation", permit.CadastralLocation);
             sql.AddParameter("cadastralBlock", permit.CadastralBlock);
             sql.AddParameter("cadastralNumber", permit.CadastralNumber);
-            sql.AddParameter("cuttingType", permit.CadastralNumber);
+            sql.AddParameter("cuttingType", permit.CuttingType);
             sql.AddParameter("validFrom", permit.ValidFrom);
             sql.AddParameter("validTo", permit.ValidTo);
 
@@ -100,6 +100,7 @@ namespace Repository.Repositories
             sql.AddParameter("CadastralForestryId", permit.CadastralForestryId);
             sql.AddParameter("CadastralLocation", permit.CadastralLocation);
             sql.AddParameter("CadastralBlock", permit.CadastralBlock);
+            sql.AddParameter("CadastralNumber", permit.CadastralNumber);
             sql.AddParameter("CuttingType", permit.CuttingType);
             sql.AddParameter("ValidFrom", permit.ValidFrom);
             sql.AddParameter("ValidTo", permit.ValidTo);
@@ -184,6 +185,18 @@ namespace Repository.Repositories
             return permit;
         }
 
+        public void DeletePermitSites(int permitBlockId)
+        {
+            var sql = new RawSqlCommand($@"
+                DELETE FROM permits_sites
+                WHERE permit_block_id = @PermitBlockId;
+            ");
+
+            sql.AddParameter("PermitBlockId", permitBlockId);
+
+            _repository.RawSqlExecuteNonQuery(sql);
+        }
+
         public void DeletePermitSites(List<int> ids)
         {
             var sql = new RawSqlCommand($@"
@@ -194,12 +207,14 @@ namespace Repository.Repositories
             _repository.RawSqlExecuteNonQuery(sql);
         }
 
-        public void DeletePermitBlocks(List<int> ids)
+        public void DeletePermitBlock(int id)
         {
             var sql = new RawSqlCommand($@"
                 DELETE FROM permits_blocks
-                WHERE id IN ({string.Join(",", ids)});
+                WHERE id = @Id;
             ");
+
+            sql.AddParameter("Id", id);
 
             _repository.RawSqlExecuteNonQuery(sql);
         }
@@ -218,7 +233,7 @@ namespace Repository.Repositories
                 if (change == changes.Last())
                     sql.CommandText += $"(@permitId, @change{counter});";
                 else
-                    sql.CommandText += $"(@permitId, @change{counter})),";
+                    sql.CommandText += $"(@permitId, @change{counter}),";
 
                 sql.AddParameter($"change{counter}", change);
                 counter++;

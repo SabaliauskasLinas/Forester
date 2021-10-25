@@ -104,10 +104,11 @@ namespace PermitsScraper.Services
                         permitBlock.Id = existingPermitBlock.Id;
                     }
                     else
-                        _permitsRepository.InsertPermitBlock(permitBlock);
-
-                    if (existingPermit != null && existingPermitBlock == null)
-                        _permitsRepository.InsertPermitHistory(newPermit.Id, $"Naujas kvartalas: {defaultPermitBlockInfo.Block}");
+                    {
+                        permitBlock.Id = _permitsRepository.InsertPermitBlock(permitBlock);
+                        if (existingPermit != null)
+                            _permitsRepository.InsertPermitHistory(newPermit.Id, $"Naujas kvartalas: {defaultPermitBlockInfo.Block}");
+                    }
 
                     permitBlock.PermitSites = GetNewPermitSites(permitGroupByBlock, enterprise, forestry, permitBlock);
                     newPermitBlocks.Add(permitBlock);
@@ -142,7 +143,11 @@ namespace PermitsScraper.Services
                             }
                         }
                         else
+                        {
                             _permitsRepository.InsertPermitSite(newPermitSite);
+                            if (existingPermit != null)
+                                _permitsRepository.InsertPermitHistory(newPermit.Id, newPermitSite.SiteCodes.Count > 1 ? $"Nauji sklypai: {string.Join(", ", newPermitSite.SiteCodes)}" : $"Naujas sklypas: {newPermitSite.SiteCodes[0]}");
+                        }
                     }
 
                     //Delete removed permit sites
@@ -154,7 +159,7 @@ namespace PermitsScraper.Services
                     }
 
                     var blockHasUnmappedSite = permitBlock.PermitSites.Any(p => !p.CadastralSiteId.HasValue);
-                    if (existingPermitBlock.HasUnmappedSites != blockHasUnmappedSite)
+                    if (existingPermitBlock != null && existingPermitBlock.HasUnmappedSites != blockHasUnmappedSite)
                     {
                         existingPermitBlock.HasUnmappedSites = blockHasUnmappedSite;
                         _permitsRepository.UpdatePermitBlock(existingPermitBlock);
@@ -164,9 +169,12 @@ namespace PermitsScraper.Services
                 //Delete removed permit blocks
                 if (unhandledExistingPermitBlocks.Count > 0)
                 {
-                    _permitsRepository.DeletePermitBlocks(unhandledExistingPermitBlocks.Select(ps => ps.Id).ToList());
                     foreach (var unhandledExistingPermitBlock in unhandledExistingPermitBlocks)
-                        _permitsRepository.InsertPermitHistory(existingPermit.Id, $"Ištrintas sklypas: {_blocksRepository.GetBlockNumberById(unhandledExistingPermitBlock.Id)}");
+                    {
+                        _permitsRepository.DeletePermitSites(unhandledExistingPermitBlock.Id);
+                        _permitsRepository.DeletePermitBlock(unhandledExistingPermitBlock.Id);
+                        _permitsRepository.InsertPermitHistory(existingPermit.Id, $"Ištrintas sklypas: {_blocksRepository.GetBlockNumberById(unhandledExistingPermitBlock.CadastralBlockId)}");
+                    }
                 }
             }
         }
@@ -216,7 +224,6 @@ namespace PermitsScraper.Services
                 }
             }
 
-            //Console.WriteLine($"Enterprise: {enterpriseName}, Found mu_kod: {foundEnterprise.Code}");
             return foundEnterprise;
         }
 
@@ -257,15 +264,6 @@ namespace PermitsScraper.Services
                 }
             }
 
-            //if (foundForestry == null)
-            //{
-            //    Console.WriteLine($"-------------------------------------------------------------");
-            //    Console.WriteLine($"ERROR NOT FOUND - mu_kod: {enterpriseCode}, forestryName: {forestryName}");
-            //    Console.WriteLine($"-------------------------------------------------------------");
-            //}
-            //else
-            //    Console.WriteLine($"mu_kod: {enterpriseCode}, Found gir_kod: {foundForestry.Code}");
-
             return foundForestry;
         }
 
@@ -282,12 +280,6 @@ namespace PermitsScraper.Services
             {
                 changes.Add($"Rajonas: {existingPermit.District} -> {newPermit.District}");
                 existingPermit.District = newPermit.District;
-            }
-
-            if (existingPermit.OwnershipForm != newPermit.OwnershipForm)
-            {
-                changes.Add($"Nuosavybės forma: {existingPermit.OwnershipForm} -> {newPermit.OwnershipForm}");
-                existingPermit.OwnershipForm = newPermit.OwnershipForm;
             }
 
             if (existingPermit.OwnershipForm != newPermit.OwnershipForm)
@@ -336,13 +328,13 @@ namespace PermitsScraper.Services
 
             if (existingPermit.ValidFrom != newPermit.ValidFrom)
             {
-                changes.Add($"Galiojimo pradžia: {existingPermit.ValidFrom} -> {newPermit.ValidFrom}");
+                changes.Add($"Galiojimo pradžia: {existingPermit.ValidFrom:yyyy-MM-dd} -> {newPermit.ValidFrom:yyyy-MM-dd}");
                 existingPermit.ValidFrom = newPermit.ValidFrom;
             }
 
             if (existingPermit.ValidTo != newPermit.ValidTo)
             {
-                changes.Add($"Galiojimo pabaiga: {existingPermit.ValidTo} -> {newPermit.ValidTo}");
+                changes.Add($"Galiojimo pabaiga: {existingPermit.ValidTo:yyyy-MM-dd} -> {newPermit.ValidTo:yyyy-MM-dd}");
                 existingPermit.ValidTo = newPermit.ValidTo;
             }
 
@@ -358,11 +350,11 @@ namespace PermitsScraper.Services
             var changes = new List<string>();
             if (existingPermitSite.Area != newPermitSite.Area)
             {
-                changes.Add($"{string.Join(", ",existingPermitSite.SiteCodes)} sklypo(-ų) plotas: {existingPermitSite.Area} -> {newPermitSite.Area}");
+                changes.Add($"{string.Join(", ",existingPermitSite.SiteCodes)} sklypo(-ų) kirtimo plotas: {existingPermitSite.Area} -> {newPermitSite.Area}");
                 existingPermitSite.Area = newPermitSite.Area;
             }
 
-            if (existingPermitSite.SiteCodes.All(newPermitSite.SiteCodes.Contains))
+            if (!existingPermitSite.SiteCodes.All(newPermitSite.SiteCodes.Contains))
             {
                 changes.Add($"Posklypiai: {string.Join(", ", existingPermitSite.SiteCodes)} -> {string.Join(", ", newPermitSite.SiteCodes)}");
                 existingPermitSite.SiteCodes = newPermitSite.SiteCodes;
@@ -406,9 +398,9 @@ namespace PermitsScraper.Services
                             var parentCadastralSiteId = _sitesRepository.GetSiteId(enterprise.Code, forestry.Code, defaultPermitBlockInfo.Block, parentSite);
                             if (parentCadastralSiteId.HasValue)
                             {
-                                var existingPermitSite = newPermitSites.Find(p => p.CadastralSiteId == parentCadastralSiteId);
+                                var existingPermitSite = newPermitSites.Find(p => p.CadastralSiteId == parentCadastralSiteId && p.Area == area);
                                 if (existingPermitSite != null)
-                                    existingPermitSite.SiteCodes.Add(parentSite);
+                                    existingPermitSite.SiteCodes.Add(site);
                                 else
                                     newPermitSites.Add(new PermitSite
                                     {
