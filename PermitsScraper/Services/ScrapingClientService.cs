@@ -13,9 +13,9 @@ namespace PermitsScraper.Services
             _client = new RestClient(config.GetSection("ForestPermitsUrl").Value);
         }
 
-        public IRestResponse GetPageResponse() => _client.Execute(new RestRequest(Method.GET));
+        public IRestResponse GetWebsiteResponse() => _client.Execute(new RestRequest(Method.GET));
 
-        public IRestResponse GetPageResponse(GetPageArgs args)
+        public IRestResponse GetWebsiteResponse(GetWebsiteArgs args)
         {
             var request = new RestRequest(Method.POST);
             request.AddHeader("Content-Type", "application/x-www-form-urlencoded");

@@ -5,7 +5,7 @@ namespace PermitsScraper.Services
 {
     public interface IScrapingClientService
     {
-        IRestResponse GetPageResponse();
-        IRestResponse GetPageResponse(GetPageArgs args);
+        IRestResponse GetWebsiteResponse();
+        IRestResponse GetWebsiteResponse(GetWebsiteArgs args);
     }
 }

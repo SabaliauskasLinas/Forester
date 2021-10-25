@@ -2,7 +2,7 @@
 
 namespace Entities.Scraping
 {
-    public class GetPageArgs
+    public class GetWebsiteArgs
     {
         public string Cookie { get; set; }
 

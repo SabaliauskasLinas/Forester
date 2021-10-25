@@ -4,6 +4,6 @@ namespace PermitsScraper.Services
 {
     public interface IPermitsImportService
     {
-        void Import(PermitsImportArgs args);
+        PermitsImportResult Import(PermitsImportArgs args);
     }
 }
